@@ -3,22 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Japanese Multiplication Visualizer</title>
+    <title>WebGPU Times Table</title>
   </head>
   <body>
     <div id="app">
-      <h1>Japanese Multiplication Visualizer</h1>
-      <div class="input-section">
-        <label for="num1">First Number:</label>
-        <input type="number" id="num1" min="1" max="99" value="12" />
-        <label for="num2">Second Number:</label>
-        <input type="number" id="num2" min="1" max="99" value="23" />
-        <button id="calculate">Calculate</button>
+      <h1>WebGPU Times Table</h1>
+      <div class="controls">
+        <div>
+          <label for="multiplier">Multiplier</label>
+          <input type="range" id="multiplier" min="2" max="1000" value="2" />
+          <span id="multiplier-value">2</span>
+        </div>
+        <div>
+          <label for="total-points">Total Points</label>
+          <input
+            type="range"
+            id="total-points"
+            min="10"
+            max="20000"
+            value="200"
+          />
+          <span id="total-points-value">200</span>
+        </div>
       </div>
-      <div class="result-section">
-        <div id="result"></div>
-      </div>
-      <canvas id="canvas" width="800" height="600"></canvas>
+      <canvas id="canvas"></canvas>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
