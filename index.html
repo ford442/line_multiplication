@@ -3,31 +3,53 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WebGPU Times Table</title>
+    <title>Japanese Multiplication Visualizer</title>
   </head>
   <body>
-    <div id="app">
-      <h1>WebGPU Times Table</h1>
-      <div class="controls">
-        <div>
-          <label for="multiplier">Multiplier</label>
-          <input type="range" id="multiplier" min="2" max="1000" value="2" />
-          <span id="multiplier-value">2</span>
+    <aside class="sidebar">
+      <h1>Japanese Multiplication</h1>
+      <p>A visual method to multiply numbers by drawing lines and counting intersections.</p>
+
+      <div class="instruction-box">
+        <strong>The Rule:</strong>
+        <p>Convert each digit into a set of parallel lines.</p>
+      </div>
+
+      <h2>How it works</h2>
+      <p>1. <strong>Blue Lines (First Number):</strong> <br> Drawn diagonally. Groups represent digits (e.g., "12" is 1 line, a space, then 2 lines).</p>
+      <p>2. <strong>Green Lines (Second Number):</strong> <br> Drawn diagonally across the first set.</p>
+      <p>3. <strong>The Answer:</strong> <br> We count the white dots where lines cross.</p>
+
+      <svg id="demo-svg" viewBox="0 0 200 150">
+         <line x1="60" y1="20" x2="140" y2="100" stroke="#646cff" stroke-width="4" />
+         <line x1="80" y1="20" x2="160" y2="100" stroke="#646cff" stroke-width="4" />
+         <line x1="60" y1="100" x2="140" y2="20" stroke="#4ec9b0" stroke-width="4" />
+         <circle cx="100" cy="60" r="5" fill="white" />
+         <circle cx="120" cy="80" r="5" fill="white" />
+         <text x="100" y="140" fill="white" font-size="12" text-anchor="middle">2 intersections = 2</text>
+      </svg>
+    </aside>
+
+    <main class="main-stage">
+      <canvas id="canvas"></canvas>
+
+      <div class="controls-overlay">
+        <div class="control-group">
+          <label for="num-a">Number A (Blue)</label>
+          <input type="range" id="num-a" min="1" max="50" value="12" />
+          <span id="val-a" class="value-display" style="color: #646cff">12</span>
         </div>
-        <div>
-          <label for="total-points">Total Points</label>
-          <input
-            type="range"
-            id="total-points"
-            min="10"
-            max="20000"
-            value="200"
-          />
-          <span id="total-points-value">200</span>
+        <div class="control-group">
+          <label for="num-b">Number B (Green)</label>
+          <input type="range" id="num-b" min="1" max="50" value="3" />
+          <span id="val-b" class="value-display" style="color: #4ec9b0">3</span>
+        </div>
+        <div class="control-group" style="justify-content: center; align-items: center;">
+             <label>Result</label>
+             <span id="result-display" class="value-display">= 36</span>
         </div>
       </div>
-      <canvas id="canvas"></canvas>
-    </div>
+    </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
