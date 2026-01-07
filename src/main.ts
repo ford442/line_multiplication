@@ -1,262 +1,161 @@
 import './style.css';
 
-interface Point {
-  x: number;
-  y: number;
-}
-
-interface Line {
-  start: Point;
-  end: Point;
-}
-
-class JapaneseMultiplication {
-  // Layout constants
-  private readonly SPACING = 60;
-  private readonly START_X = 150;
-  private readonly START_Y = 100;
-  private readonly LINE_LENGTH = 300;
-  private readonly LINE_SPACING = 15;
-  private readonly ANGLE = Math.PI / 6; // 30 degrees
-
-  // Color constants
-  private readonly COLOR_NUM1_PRIMARY = '#ff6b6b';
-  private readonly COLOR_NUM1_SECONDARY = '#ee5a6f';
-  private readonly COLOR_NUM2_PRIMARY = '#4ecdc4';
-  private readonly COLOR_NUM2_SECONDARY = '#45b7d1';
-  private readonly COLOR_INTERSECTION = '#ffd93d';
-  private readonly COLOR_TEXT = '#2c3e50';
-  private readonly COLOR_DETAIL_TEXT = '#34495e';
-
-  private canvas: HTMLCanvasElement;
-  private ctx: CanvasRenderingContext2D;
-  private num1Input: HTMLInputElement;
-  private num2Input: HTMLInputElement;
-  private calculateBtn: HTMLButtonElement;
-  private resultDiv: HTMLElement;
-
-  constructor() {
-    this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
-    this.ctx = this.canvas.getContext('2d')!;
-    this.num1Input = document.getElementById('num1') as HTMLInputElement;
-    this.num2Input = document.getElementById('num2') as HTMLInputElement;
-    this.calculateBtn = document.getElementById('calculate') as HTMLButtonElement;
-    this.resultDiv = document.getElementById('result') as HTMLElement;
-
-    this.setupEventListeners();
-    this.calculate(); // Initial calculation
+const main = async () => {
+  if (!navigator.gpu) {
+    throw new Error('WebGPU not supported on this browser.');
+  }
+  const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+  const context = canvas.getContext('webgpu');
+  if (!context) {
+    throw new Error('Could not get WebGPU context.');
   }
 
-  private setupEventListeners(): void {
-    this.calculateBtn.addEventListener('click', () => this.calculate());
-    this.num1Input.addEventListener('input', () => this.calculate());
-    this.num2Input.addEventListener('input', () => this.calculate());
-  }
+  const adapter = await navigator.gpu.requestAdapter();
+  if (!adapter) throw new Error('No adapter found.');
+  const device = await adapter.requestDevice();
+  const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
 
-  private getDigits(num: number): number[] {
-    return num.toString().split('').map(Number);
-  }
+  context.configure({
+    device: device,
+    format: canvasFormat,
+    alphaMode: 'premultiplied',
+  });
 
-  private calculate(): void {
-    const num1 = parseInt(this.num1Input.value) || 0;
-    const num2 = parseInt(this.num2Input.value) || 0;
+  const uniformBufferSize = 16;
+  const uniformBuffer = device.createBuffer({
+    size: uniformBufferSize,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
 
-    if (num1 < 1 || num1 > 99 || num2 < 1 || num2 > 99) {
-      this.resultDiv.textContent = 'Please enter numbers between 1 and 99';
-      return;
-    }
+  const uniforms = new Float32Array(uniformBufferSize / 4);
 
-    const result = num1 * num2;
-    this.resultDiv.innerHTML = `<strong>${num1} × ${num2} = ${result}</strong>`;
-    
-    this.visualize(num1, num2);
-  }
+  const multiplierSlider = document.getElementById('multiplier') as HTMLInputElement;
+  const totalPointsSlider = document.getElementById('total-points') as HTMLInputElement;
+  const multiplierValue = document.getElementById('multiplier-value') as HTMLSpanElement;
+  const totalPointsValue = document.getElementById('total-points-value') as HTMLSpanElement;
 
-  private visualize(num1: number, num2: number): void {
-    // Clear canvas
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-    const digits1 = this.getDigits(num1);
-    const digits2 = this.getDigits(num2);
-
-    // Draw lines for first number (top-left to bottom-right)
-    const lines1: Line[][] = [];
-    let offsetX1 = 0;
-
-    digits1.forEach((digit, groupIndex) => {
-      const groupLines: Line[] = [];
-      for (let i = 0; i < digit; i++) {
-        const y = this.START_Y + i * this.LINE_SPACING;
-        const start: Point = { x: this.START_X + offsetX1, y };
-        const end: Point = {
-          x: start.x + this.LINE_LENGTH * Math.cos(this.ANGLE),
-          y: start.y + this.LINE_LENGTH * Math.sin(this.ANGLE)
-        };
-        groupLines.push({ start, end });
-        
-        this.ctx.strokeStyle = groupIndex === 0 ? this.COLOR_NUM1_PRIMARY : this.COLOR_NUM1_SECONDARY;
-        this.ctx.lineWidth = 2;
-        this.ctx.beginPath();
-        this.ctx.moveTo(start.x, start.y);
-        this.ctx.lineTo(end.x, end.y);
-        this.ctx.stroke();
-      }
-      lines1.push(groupLines);
-      offsetX1 += this.SPACING;
-    });
-
-    // Draw lines for second number (top-right to bottom-left)
-    const lines2: Line[][] = [];
-    let offsetX2 = 0;
-
-    digits2.forEach((digit, groupIndex) => {
-      const groupLines: Line[] = [];
-      for (let i = 0; i < digit; i++) {
-        const y = this.START_Y + i * this.LINE_SPACING;
-        const start: Point = {
-          x: this.START_X + this.LINE_LENGTH * Math.cos(this.ANGLE) + offsetX2,
-          y
-        };
-        const end: Point = {
-          x: start.x + this.LINE_LENGTH * Math.cos(Math.PI - this.ANGLE),
-          y: start.y + this.LINE_LENGTH * Math.sin(Math.PI - this.ANGLE)
-        };
-        groupLines.push({ start, end });
-        
-        this.ctx.strokeStyle = groupIndex === 0 ? this.COLOR_NUM2_PRIMARY : this.COLOR_NUM2_SECONDARY;
-        this.ctx.lineWidth = 2;
-        this.ctx.beginPath();
-        this.ctx.moveTo(start.x, start.y);
-        this.ctx.lineTo(end.x, end.y);
-        this.ctx.stroke();
-      }
-      lines2.push(groupLines);
-      offsetX2 += this.SPACING;
-    });
-
-    // Calculate and draw intersections
-    this.drawIntersections(lines1, lines2, digits1.length, digits2.length);
-  }
-
-  private drawIntersections(
-    lines1: Line[][],
-    lines2: Line[][],
-    groups1: number,
-    groups2: number
-  ): void {
-    const intersectionCounts: number[][] = [];
-    
-    // Initialize intersection count matrix
-    for (let i = 0; i < groups1; i++) {
-      intersectionCounts[i] = [];
-      for (let j = 0; j < groups2; j++) {
-        intersectionCounts[i][j] = 0;
-      }
-    }
-
-    // Count intersections for each group pair
-    for (let g1 = 0; g1 < groups1; g1++) {
-      for (let g2 = 0; g2 < groups2; g2++) {
-        const group1Lines = lines1[g1];
-        const group2Lines = lines2[g2];
-        
-        group1Lines.forEach(line1 => {
-          group2Lines.forEach(line2 => {
-            const intersection = this.getLineIntersection(line1, line2);
-            if (intersection) {
-              intersectionCounts[g1][g2]++;
-              
-              // Draw intersection point
-              this.ctx.fillStyle = this.COLOR_INTERSECTION;
-              this.ctx.beginPath();
-              this.ctx.arc(intersection.x, intersection.y, 3, 0, 2 * Math.PI);
-              this.ctx.fill();
-            }
-          });
-        });
-      }
-    }
-
-    // Display intersection counts
-    this.displayIntersectionCounts(intersectionCounts);
-  }
-
-  private getLineIntersection(line1: Line, line2: Line): Point | null {
-    const x1 = line1.start.x;
-    const y1 = line1.start.y;
-    const x2 = line1.end.x;
-    const y2 = line1.end.y;
-    const x3 = line2.start.x;
-    const y3 = line2.start.y;
-    const x4 = line2.end.x;
-    const y4 = line2.end.y;
-
-    const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-    
-    if (Math.abs(denom) < 0.001) return null;
-
-    const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
-    const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
-
-    if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
-      return {
-        x: x1 + t * (x2 - x1),
-        y: y1 + t * (y2 - y1)
+  const shaderModule = device.createShaderModule({
+    code: `
+      struct Uniforms {
+        multiplier: f32,
+        totalPoints: f32,
+        aspectRatio: f32,
       };
-    }
+      @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
-    return null;
-  }
+      struct VertexOutput {
+        @builtin(position) position: vec4<f32>,
+        @location(0) color: vec4<f32>,
+      };
 
-  private displayIntersectionCounts(counts: number[][]): void {
-    // Validate counts array is not empty
-    if (counts.length === 0 || counts[0].length === 0) {
-      return;
-    }
+      @vertex
+      fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
+        let pi = 3.14159265359;
+        let total_points_u = u32(uniforms.totalPoints);
+        let multiplier_u = u32(uniforms.multiplier);
+        let point_index_u = vertex_index / 2u;
+        let is_start_point = (vertex_index % 2u) == 0u;
 
-    const startX = 150;
-    const startY = 450;
-    
-    this.ctx.fillStyle = this.COLOR_TEXT;
-    this.ctx.font = 'bold 16px Arial';
-    this.ctx.fillText('Intersection Groups:', startX, startY);
+        let p_index_u = select(point_index_u * multiplier_u, point_index_u, is_start_point);
+        let final_index = f32(p_index_u % total_points_u);
+        let angle = 2.0 * pi * final_index / uniforms.totalPoints;
 
-    let y = startY + 30;
-    let carryOver = 0;
-    const totalGroups = counts.length + counts[0].length - 1;
-    const resultDigits: number[] = [];
-
-    // Calculate result by diagonal groups (for place values)
-    for (let diagonal = 0; diagonal < totalGroups; diagonal++) {
-      let sum = 0;
-      for (let i = 0; i < counts.length; i++) {
-        const j = diagonal - i;
-        if (j >= 0 && j < counts[0].length) {
-          sum += counts[i][j];
+        var pos = vec2<f32>(cos(angle), sin(angle));
+        if (uniforms.aspectRatio > 1.0) {
+            pos.y /= uniforms.aspectRatio;
+        } else {
+            pos.x *= uniforms.aspectRatio;
         }
+        
+        let other_p_index_u = select(point_index_u, point_index_u * multiplier_u, is_start_point);
+        let other_final_index = f32(other_p_index_u % total_points_u);
+        let other_angle = 2.0 * pi * other_final_index / uniforms.totalPoints;
+
+        var other_pos = vec2<f32>(cos(other_angle), sin(other_angle));
+        if (uniforms.aspectRatio > 1.0) {
+            other_pos.y /= uniforms.aspectRatio;
+        } else {
+            other_pos.x *= uniforms.aspectRatio;
+        }
+
+        let dist = distance(pos, other_pos);
+        
+        var out: VertexOutput;
+        out.position = vec4<f32>(pos, 0.0, 1.0);
+        out.color = vec4<f32>(dist / 2.0, 1.0 - dist / 1.5, 0.8, 1.0);
+        return out;
       }
-      
-      sum += carryOver;
-      const digit = sum % 10;
-      carryOver = Math.floor(sum / 10);
-      resultDigits.unshift(digit);
 
-      this.ctx.fillStyle = this.COLOR_DETAIL_TEXT;
-      this.ctx.font = '14px Arial';
-      this.ctx.fillText(
-        `Group ${diagonal + 1}: ${sum} (digit: ${digit}, carry: ${carryOver})`,
-        startX,
-        y
-      );
-      y += 25;
+      @fragment
+      fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+        return in.color;
+      }
+    `,
+  });
+
+  const bindGroupLayout = device.createBindGroupLayout({
+    entries: [{
+      binding: 0,
+      visibility: GPUShaderStage.VERTEX,
+      buffer: { type: 'uniform' },
+    }],
+  });
+
+  const pipelineLayout = device.createPipelineLayout({
+    bindGroupLayouts: [bindGroupLayout],
+  });
+
+  const pipeline = device.createRenderPipeline({
+    layout: pipelineLayout,
+    vertex: { module: shaderModule, entryPoint: 'vs_main' },
+    fragment: { module: shaderModule, entryPoint: 'fs_main', targets: [{ format: canvasFormat }] },
+    primitive: { topology: 'line-list' },
+  });
+
+  const bindGroup = device.createBindGroup({
+    layout: bindGroupLayout,
+    entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
+  });
+
+  const updateUniforms = () => {
+    uniforms[0] = parseFloat(multiplierSlider.value);
+    uniforms[1] = parseFloat(totalPointsSlider.value);
+    uniforms[2] = canvas.width / canvas.height;
+    device.queue.writeBuffer(uniformBuffer, 0, uniforms);
+
+    multiplierValue.textContent = multiplierSlider.value;
+    totalPointsValue.textContent = totalPointsSlider.value;
+  };
+
+  const render = () => {
+    const commandEncoder = device.createCommandEncoder();
+    const textureView = context.getCurrentTexture().createView();
+    const renderPassDescriptor: GPURenderPassDescriptor = {
+      colorAttachments: [{ view: textureView, clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }, loadOp: 'clear', storeOp: 'store' }],
+    };
+    const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
+    passEncoder.setPipeline(pipeline);
+    passEncoder.setBindGroup(0, bindGroup);
+    passEncoder.draw(2 * parseInt(totalPointsSlider.value));
+    passEncoder.end();
+    device.queue.submit([commandEncoder.finish()]);
+  };
+
+  const renderLoop = () => {
+    updateUniforms();
+    render();
+    requestAnimationFrame(renderLoop);
+  };
+
+  new ResizeObserver(entries => {
+    for (const entry of entries) {
+      const { width, height } = entry.contentRect;
+      canvas.width = width;
+      canvas.height = height;
     }
+  }).observe(canvas);
 
-    // Add any remaining carry
-    if (carryOver > 0) {
-      resultDigits.unshift(carryOver);
-    }
-  }
-}
+  requestAnimationFrame(renderLoop);
+};
 
-// Initialize the application
-new JapaneseMultiplication();
+document.addEventListener('DOMContentLoaded', main);
