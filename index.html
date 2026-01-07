@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Japanese Multiplication Visualizer</title>
+  </head>
+  <body>
+    <div id="app">
+      <h1>Japanese Multiplication Visualizer</h1>
+      <div class="input-section">
+        <label for="num1">First Number:</label>
+        <input type="number" id="num1" min="1" max="99" value="12" />
+        <label for="num2">Second Number:</label>
+        <input type="number" id="num2" min="1" max="99" value="23" />
+        <button id="calculate">Calculate</button>
+      </div>
+      <div class="result-section">
+        <div id="result"></div>
+      </div>
+      <canvas id="canvas" width="800" height="600"></canvas>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
