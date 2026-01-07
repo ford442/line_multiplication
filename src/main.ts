@@ -11,6 +11,23 @@ interface Line {
 }
 
 class JapaneseMultiplication {
+  // Layout constants
+  private readonly SPACING = 60;
+  private readonly START_X = 150;
+  private readonly START_Y = 100;
+  private readonly LINE_LENGTH = 300;
+  private readonly LINE_SPACING = 15;
+  private readonly ANGLE = Math.PI / 6; // 30 degrees
+
+  // Color constants
+  private readonly COLOR_NUM1_PRIMARY = '#ff6b6b';
+  private readonly COLOR_NUM1_SECONDARY = '#ee5a6f';
+  private readonly COLOR_NUM2_PRIMARY = '#4ecdc4';
+  private readonly COLOR_NUM2_SECONDARY = '#45b7d1';
+  private readonly COLOR_INTERSECTION = '#ffd93d';
+  private readonly COLOR_TEXT = '#2c3e50';
+  private readonly COLOR_DETAIL_TEXT = '#34495e';
+
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private num1Input: HTMLInputElement;
@@ -62,12 +79,6 @@ class JapaneseMultiplication {
     const digits1 = this.getDigits(num1);
     const digits2 = this.getDigits(num2);
 
-    const spacing = 60;
-    const startX = 150;
-    const startY = 100;
-    const lineLength = 300;
-    const angle = Math.PI / 6; // 30 degrees
-
     // Draw lines for first number (top-left to bottom-right)
     const lines1: Line[][] = [];
     let offsetX1 = 0;
@@ -75,15 +86,15 @@ class JapaneseMultiplication {
     digits1.forEach((digit, groupIndex) => {
       const groupLines: Line[] = [];
       for (let i = 0; i < digit; i++) {
-        const y = startY + i * 15;
-        const start: Point = { x: startX + offsetX1, y };
+        const y = this.START_Y + i * this.LINE_SPACING;
+        const start: Point = { x: this.START_X + offsetX1, y };
         const end: Point = {
-          x: start.x + lineLength * Math.cos(angle),
-          y: start.y + lineLength * Math.sin(angle)
+          x: start.x + this.LINE_LENGTH * Math.cos(this.ANGLE),
+          y: start.y + this.LINE_LENGTH * Math.sin(this.ANGLE)
         };
         groupLines.push({ start, end });
         
-        this.ctx.strokeStyle = groupIndex === 0 ? '#ff6b6b' : '#ee5a6f';
+        this.ctx.strokeStyle = groupIndex === 0 ? this.COLOR_NUM1_PRIMARY : this.COLOR_NUM1_SECONDARY;
         this.ctx.lineWidth = 2;
         this.ctx.beginPath();
         this.ctx.moveTo(start.x, start.y);
@@ -91,7 +102,7 @@ class JapaneseMultiplication {
         this.ctx.stroke();
       }
       lines1.push(groupLines);
-      offsetX1 += spacing;
+      offsetX1 += this.SPACING;
     });
 
     // Draw lines for second number (top-right to bottom-left)
@@ -101,18 +112,18 @@ class JapaneseMultiplication {
     digits2.forEach((digit, groupIndex) => {
       const groupLines: Line[] = [];
       for (let i = 0; i < digit; i++) {
-        const y = startY + i * 15;
+        const y = this.START_Y + i * this.LINE_SPACING;
         const start: Point = {
-          x: startX + lineLength * Math.cos(angle) + offsetX2,
+          x: this.START_X + this.LINE_LENGTH * Math.cos(this.ANGLE) + offsetX2,
           y
         };
         const end: Point = {
-          x: start.x + lineLength * Math.cos(Math.PI - angle),
-          y: start.y + lineLength * Math.sin(Math.PI - angle)
+          x: start.x + this.LINE_LENGTH * Math.cos(Math.PI - this.ANGLE),
+          y: start.y + this.LINE_LENGTH * Math.sin(Math.PI - this.ANGLE)
         };
         groupLines.push({ start, end });
         
-        this.ctx.strokeStyle = groupIndex === 0 ? '#4ecdc4' : '#45b7d1';
+        this.ctx.strokeStyle = groupIndex === 0 ? this.COLOR_NUM2_PRIMARY : this.COLOR_NUM2_SECONDARY;
         this.ctx.lineWidth = 2;
         this.ctx.beginPath();
         this.ctx.moveTo(start.x, start.y);
@@ -120,7 +131,7 @@ class JapaneseMultiplication {
         this.ctx.stroke();
       }
       lines2.push(groupLines);
-      offsetX2 += spacing;
+      offsetX2 += this.SPACING;
     });
 
     // Calculate and draw intersections
@@ -156,7 +167,7 @@ class JapaneseMultiplication {
               intersectionCounts[g1][g2]++;
               
               // Draw intersection point
-              this.ctx.fillStyle = '#ffd93d';
+              this.ctx.fillStyle = this.COLOR_INTERSECTION;
               this.ctx.beginPath();
               this.ctx.arc(intersection.x, intersection.y, 3, 0, 2 * Math.PI);
               this.ctx.fill();
@@ -198,10 +209,15 @@ class JapaneseMultiplication {
   }
 
   private displayIntersectionCounts(counts: number[][]): void {
+    // Validate counts array is not empty
+    if (counts.length === 0 || counts[0].length === 0) {
+      return;
+    }
+
     const startX = 150;
     const startY = 450;
     
-    this.ctx.fillStyle = '#2c3e50';
+    this.ctx.fillStyle = this.COLOR_TEXT;
     this.ctx.font = 'bold 16px Arial';
     this.ctx.fillText('Intersection Groups:', startX, startY);
 
@@ -225,7 +241,7 @@ class JapaneseMultiplication {
       carryOver = Math.floor(sum / 10);
       resultDigits.unshift(digit);
 
-      this.ctx.fillStyle = '#34495e';
+      this.ctx.fillStyle = this.COLOR_DETAIL_TEXT;
       this.ctx.font = '14px Arial';
       this.ctx.fillText(
         `Group ${diagonal + 1}: ${sum} (digit: ${digit}, carry: ${carryOver})`,
