@@ -17,7 +17,7 @@ body {
 
 /* --- Layout: Sidebar | Main Stage --- */
 .sidebar {
-  width: 350px;
+  width: 50%; /* Equal width */
   background: #252525;
   border-right: 1px solid #333;
   padding: 2rem;
@@ -27,10 +27,11 @@ body {
   box-shadow: 2px 0 10px rgba(0,0,0,0.3);
   z-index: 10;
   flex-shrink: 0;
+  box-sizing: border-box; /* Include padding in width */
 }
 
 .main-stage {
-  flex: 1;
+  flex: 1; /* Takes the remaining 50% */
   position: relative;
   display: flex;
   flex-direction: column;
@@ -43,6 +44,7 @@ body {
 /* --- Typography & Lesson --- */
 h1 { font-size: 1.5rem; color: #fff; margin-bottom: 0.5rem; margin-top: 0; }
 h2 { font-size: 1.1rem; color: #4ec9b0; margin-top: 1.5rem; }
+h3 { font-size: 1.0rem; color: #fff; margin-bottom: 1rem; }
 p { font-size: 0.9rem; line-height: 1.6; color: #aaa; }
 
 .instruction-box {
@@ -56,36 +58,39 @@ p { font-size: 0.9rem; line-height: 1.6; color: #aaa; }
 /* --- Interactive SVG for Sidebar --- */
 #demo-svg {
   width: 100%;
-  height: 150px;
+  height: auto; /* Scale aspect ratio naturally */
+  min-height: 300px; /* Ensure it's not too small, but user wants it bigger */
   background: #222;
   border-radius: 8px;
   margin: 1rem 0;
   display: block;
 }
 
-/* --- Controls Overlay --- */
-.controls-overlay {
-  position: absolute;
-  bottom: 30px;
-  background: rgba(30, 30, 30, 0.9);
-  padding: 1.5rem;
-  border-radius: 12px;
-  border: 1px solid #444;
+/* --- Controls Section (Moved from Overlay) --- */
+.controls-section {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #444;
   display: flex;
-  gap: 2rem;
-  backdrop-filter: blur(5px);
-  z-index: 20;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
 .control-group {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  min-width: 150px;
+}
+
+.result-group {
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.5rem;
 }
 
 label { font-size: 0.85rem; font-weight: bold; color: #ccc; }
-input[type="range"] { accent-color: #646cff; cursor: pointer; }
+input[type="range"] { accent-color: #646cff; cursor: pointer; width: 100%; }
 .value-display { font-family: monospace; font-size: 1.2rem; color: #fff; }
 
 canvas {
