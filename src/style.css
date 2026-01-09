@@ -133,3 +133,56 @@ input[type="range"] {
 .result-value { font-family: monospace; font-size: 1.8rem; color: #4ec9b0; }
 
 canvas { width: 100%; height: 100%; display: block; }
+/* --- Animated Diagram --- */
+#demo-svg {
+  /* Give it a subtle background to stand out */
+  background: radial-gradient(circle at center, #2a2a2a 0%, #222 100%);
+  border: 1px solid #444;
+}
+
+/* 1. Draw Lines Animation */
+.step-1-blue line, .step-2-green line {
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: drawLine 1.5s ease-out forwards;
+}
+
+/* Blue starts immediately */
+.step-1-blue line {
+  animation-delay: 0.5s;
+}
+
+/* Green starts after Blue */
+.step-2-green line {
+  animation-delay: 1.5s;
+}
+
+@keyframes drawLine {
+  to { stroke-dashoffset: 0; }
+}
+
+/* 2. Pop Dots Animation */
+.step-3-dots circle {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(0);
+  animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.step-3-dots circle { animation-delay: 2.8s; }
+
+@keyframes popIn {
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* 3. Fade in Zones & Text */
+.step-4-zones {
+  opacity: 0;
+  animation: fadeIn 1s ease-out forwards;
+  animation-delay: 3.5s;
+}
+
+@keyframes fadeIn {
+  to { opacity: 1; }
+}
