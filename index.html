@@ -3,22 +3,54 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Japanese Multiplication Visualizer</title>
+    <title>Visual Line Multiplication</title>
   </head>
   <body>
     <aside class="sidebar">
-      <h1>Japanese Multiplication</h1>
-      <p>A visual method to multiply numbers by drawing lines and counting intersections.</p>
+      <header>
+        <h1>Visual Multiplication</h1>
+        <p class="subtitle">The "Japanese" Line Method</p>
+      </header>
 
-      <div class="instruction-box">
-        <strong>The Rule:</strong>
-        <p>Convert each digit into a set of parallel lines.</p>
+      <section class="intro">
+        <p>
+          Forget calculators. Multiply numbers just by drawing lines and counting dots.
+          It's satisfying, visual, and mathematically beautiful.
+        </p>
+      </section>
+
+      <div class="card instruction-box">
+        <h3>How it Works</h3>
+        <ol>
+          <li>
+            <strong>Draw the First Number:</strong>
+            Convert digits into parallel lines (Blue).
+            <br><em>Example: "12" = 1 line, a gap, then 2 lines.</em>
+          </li>
+          <li>
+            <strong>Draw the Second:</strong>
+            Cross them with lines for the second number (Green).
+          </li>
+          <li>
+            <strong>Count the Dots:</strong>
+            Group the intersections vertically.
+            <br>Right group = Ones place.
+            <br>Middle group = Tens place.
+            <br>Left group = Hundreds place.
+          </li>
+        </ol>
       </div>
 
-      <h2>How it works</h2>
-      <p>1. <strong>Blue Lines (First Number):</strong> <br> Drawn diagonally. Groups represent digits (e.g., "12" is 1 line, a space, then 2 lines).</p>
-      <p>2. <strong>Green Lines (Second Number):</strong> <br> Drawn diagonally across the first set.</p>
-      <p>3. <strong>The Answer:</strong> <br> We count the white dots where lines cross.</p>
+      <div class="card math-box">
+        <h3>Why does it work?</h3>
+        <p>It's not magic—it's the <strong>Distributive Property</strong> in disguise!</p>
+        <p>
+          When you cross lines for $12 \times 3$, you are actually calculating:
+          <br>
+          $(10 + 2) \times 3 = (10 \times 3) + (2 \times 3)$
+        </p>
+        <p>The visual groups separate the <strong>Tens</strong> from the <strong>Ones</strong> automatically.</p>
+      </div>
 
       <svg id="demo-svg" viewBox="0 0 200 150">
          <line x1="60" y1="20" x2="140" y2="100" stroke="#646cff" stroke-width="4" />
@@ -30,22 +62,35 @@
       </svg>
 
       <div class="controls-section">
-        <h3>Interactive Controls</h3>
+        <h3>Try it Yourself</h3>
         <div class="control-group">
-          <label for="num-a">Number A (Blue)</label>
-          <input type="range" id="num-a" min="1" max="50" value="12" />
-          <span id="val-a" class="value-display" style="color: #646cff">12</span>
+          <label for="num-a">Blue Lines (First Number)</label>
+          <div class="input-row">
+            <input type="range" id="num-a" min="1" max="50" value="12" />
+            <span id="val-a" class="value-display" style="color: #646cff">12</span>
+          </div>
         </div>
         <div class="control-group">
-          <label for="num-b">Number B (Green)</label>
-          <input type="range" id="num-b" min="1" max="50" value="3" />
-          <span id="val-b" class="value-display" style="color: #4ec9b0">3</span>
+          <label for="num-b">Green Lines (Second Number)</label>
+          <div class="input-row">
+            <input type="range" id="num-b" min="1" max="50" value="3" />
+            <span id="val-b" class="value-display" style="color: #4ec9b0">3</span>
+          </div>
         </div>
-        <div class="control-group result-group">
-             <label>Result</label>
-             <span id="result-display" class="value-display">= 36</span>
+        <div class="result-box">
+             <span class="result-label">Result:</span>
+             <span id="result-display" class="result-value">36</span>
         </div>
       </div>
+
+      <section class="trivia">
+        <h4>Did you know?</h4>
+        <p>
+          Despite the name, this method isn't standard in Japanese schools!
+          It's a visual trick often shared online, similar to the "Chinese Stick Method" or "Vedic Math."
+        </p>
+      </section>
+
     </aside>
 
     <main class="main-stage">

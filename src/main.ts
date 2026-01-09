@@ -163,7 +163,7 @@ const main = async () => {
 
     displayA.textContent = numA.toString();
     displayB.textContent = numB.toString();
-    displayResult.textContent = `= ${numA * numB}`;
+    displayResult.textContent = (numA * numB).toString();
 
     const digitsA = getDigits(numA);
     const digitsB = getDigits(numB);
