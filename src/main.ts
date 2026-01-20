@@ -23,49 +23,139 @@ type LineSegment = {
   power: number; // New: Tracks 10^power (0=ones, 1=tens, etc)
 };
 
+type LabelData = {
+  text: string;
+  x: number;
+  y: number;
+  type: 'A' | 'B';
+};
+
 const main = async () => {
   // 1. WebGPU Setup
-  if (!navigator.gpu) throw new Error('WebGPU not supported.');
+  if (!navigator.gpu) {
+    console.error("WebGPU not supported on this browser.");
+    alert("WebGPU is not supported. Please try Chrome Canary or a compatible browser.");
+    throw new Error('WebGPU not supported.');
+  }
+
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
-  const adapter = await navigator.gpu.requestAdapter();
-  if (!adapter) throw new Error('No adapter.');
+
+  // Ensure canvas has a size
+  const width = canvas.clientWidth * window.devicePixelRatio;
+  const height = canvas.clientHeight * window.devicePixelRatio;
+  canvas.width = width;
+  canvas.height = height;
+
+  const adapter = await navigator.gpu.requestAdapter({
+    powerPreference: 'high-performance'
+  });
+
+  if (!adapter) {
+    console.error("No WebGPU adapter found.");
+    alert("No WebGPU adapter found.");
+    throw new Error('No adapter.');
+  }
+
   const device = await adapter.requestDevice();
+
   const context = canvas.getContext('webgpu');
-  if (!context) throw new Error('No context.');
+  if (!context) {
+    console.error("Failed to get WebGPU context.");
+    throw new Error('No context.');
+  }
 
   const format = navigator.gpu.getPreferredCanvasFormat();
-  context.configure({ device, format, alphaMode: 'premultiplied' });
+
+  try {
+    context.configure({
+      device,
+      format,
+      alphaMode: 'premultiplied'
+    });
+  } catch (e) {
+    console.error("Context configuration failed:", e);
+    // Fallback attempts or just re-throw
+    throw e;
+  }
 
   // 2. Shader Code
   const shaderCode = `
-    struct VertexOutput {
+    struct LineVertexOutput {
       @builtin(position) position: vec4<f32>,
       @location(0) color: vec4<f32>,
+      @location(1) uv: vec2<f32>,
+    };
+
+    struct DotVertexOutput {
+      @builtin(position) position: vec4<f32>,
+      @location(0) color: vec4<f32>,
+      @location(1) localPos: vec2<f32>,
     };
 
     // --- Line Shader ---
     struct LineInput {
-      @location(0) position: vec2<f32>,
-      @location(1) color: vec3<f32>,
+      @location(0) start: vec2<f32>,
+      @location(1) end: vec2<f32>,
+      @location(2) color: vec3<f32>,
     };
 
     @vertex
-    fn vs_lines(input: LineInput) -> VertexOutput {
-      let pos = input.position / 3.5; // Zoom out slightly
-      var out: VertexOutput;
-      out.position = vec4<f32>(pos, 0.0, 1.0);
+    fn vs_lines(@builtin(vertex_index) v_index: u32, input: LineInput) -> LineVertexOutput {
+      let thickness = 0.04;
+      let p0 = input.start;
+      let p1 = input.end;
+
+      let dir = p1 - p0;
+      let len = length(dir);
+
+      // Handle zero length lines safely
+      var normal = vec2<f32>(0.0, 1.0);
+      var forward = vec2<f32>(1.0, 0.0);
+      if (len > 0.0001) {
+         normal = normalize(vec2<f32>(-dir.y, dir.x));
+         forward = dir / len;
+      }
+
+      var uv = vec2<f32>(0.0, 0.0);
+      let idx = v_index % 6u;
+
+      // Expand line to quad
+      if (idx == 0u || idx == 3u) { uv = vec2<f32>(0.0, -1.0); }
+      if (idx == 1u) { uv = vec2<f32>(1.0, -1.0); }
+      if (idx == 2u || idx == 4u) { uv = vec2<f32>(0.0, 1.0); }
+      if (idx == 5u) { uv = vec2<f32>(1.0, 1.0); }
+
+      let localX = uv.x * len;
+      let localY = uv.y * thickness * 0.5;
+
+      let worldPos = p0 + (forward * localX) + (normal * localY);
+      let ndcPos = worldPos / 3.5;
+
+      var out: LineVertexOutput;
+      out.position = vec4<f32>(ndcPos, 0.0, 1.0);
       out.color = vec4<f32>(input.color, 1.0);
+      out.uv = uv;
       return out;
+    }
+
+    @fragment
+    fn fs_lines(in: LineVertexOutput) -> @location(0) vec4<f32> {
+      // Anti-aliasing along the width (Y axis of UV)
+      let dist = abs(in.uv.y);
+      let alpha = 1.0 - smoothstep(0.7, 1.0, dist);
+
+      // Premultiplied alpha
+      return vec4<f32>(in.color.rgb * alpha, alpha);
     }
 
     // --- Dot Shader ---
     struct DotInput {
       @location(0) center: vec2<f32>,
-      @location(1) zoneColor: vec3<f32>, // New: Color based on place value
+      @location(1) zoneColor: vec3<f32>,
     };
 
     @vertex
-    fn vs_dots(@builtin(vertex_index) v_index: u32, input: DotInput) -> VertexOutput {
+    fn vs_dots(@builtin(vertex_index) v_index: u32, input: DotInput) -> DotVertexOutput {
        let size = ${DOT_SIZE};
        var corner = vec2<f32>(0.0, 0.0);
        let idx = v_index % 6u;
@@ -79,17 +169,38 @@ const main = async () => {
        let worldPos = input.center + (corner * size);
        let ndcPos = worldPos / 3.5;
 
-       var out: VertexOutput;
+       var out: DotVertexOutput;
        out.position = vec4<f32>(ndcPos, 0.0, 1.0);
-
-       // Pass the zone color to the fragment shader
        out.color = vec4<f32>(input.zoneColor, 1.0);
+       out.localPos = corner;
        return out;
     }
 
     @fragment
-    fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-      return in.color;
+    fn fs_dots(in: DotVertexOutput) -> @location(0) vec4<f32> {
+      // Create a "Gem" shape
+      // Diamond shape: abs(x) + abs(y) <= 1.0
+      let d = abs(in.localPos.x) + abs(in.localPos.y);
+      if (d > 1.0) { discard; }
+
+      // Faceted Look
+      var brightness = 1.0;
+
+      // Top facets are brighter, bottom darker
+      if (in.localPos.y > 0.0) { brightness *= 0.7; }
+      else { brightness *= 1.1; }
+
+      // Side facets
+      if (abs(in.localPos.x) > 0.0) { brightness *= 0.95; }
+
+      // Specular highlight in the center
+      let dist = length(in.localPos);
+      if (dist < 0.2) { brightness += (0.2 - dist) * 4.0; }
+
+      // Edge outline effect (slight darkening at very edge of diamond)
+      if (d > 0.9) { brightness *= 0.8; }
+
+      return vec4<f32>(in.color.rgb * brightness, 1.0);
     }
   `;
 
@@ -102,16 +213,17 @@ const main = async () => {
       module: shaderModule,
       entryPoint: 'vs_lines',
       buffers: [{
-        arrayStride: 20,
-        stepMode: 'vertex',
+        arrayStride: 28, // start(2) + end(2) + color(3) = 7 floats * 4 = 28
+        stepMode: 'instance',
         attributes: [
-          { shaderLocation: 0, offset: 0, format: 'float32x2' }, // pos
-          { shaderLocation: 1, offset: 8, format: 'float32x3' }, // color
+          { shaderLocation: 0, offset: 0, format: 'float32x2' },  // start
+          { shaderLocation: 1, offset: 8, format: 'float32x2' },  // end
+          { shaderLocation: 2, offset: 16, format: 'float32x3' }, // color
         ]
       }]
     },
-    fragment: { module: shaderModule, entryPoint: 'fs_main', targets: [{ format }] },
-    primitive: { topology: 'line-list' }
+    fragment: { module: shaderModule, entryPoint: 'fs_lines', targets: [{ format }] },
+    primitive: { topology: 'triangle-list' }
   });
 
   const dotPipeline = device.createRenderPipeline({
@@ -128,14 +240,14 @@ const main = async () => {
         ]
       }]
     },
-    fragment: { module: shaderModule, entryPoint: 'fs_main', targets: [{ format }] },
+    fragment: { module: shaderModule, entryPoint: 'fs_dots', targets: [{ format }] },
     primitive: { topology: 'triangle-list' }
   });
 
   // --- State ---
   let lineBuffer: GPUBuffer | null = null;
   let dotBuffer: GPUBuffer | null = null;
-  let lineVertexCount = 0;
+  let lineInstanceCount = 0;
   let dotInstanceCount = 0;
 
   const sliderA = document.getElementById('num-a') as HTMLInputElement;
@@ -143,6 +255,7 @@ const main = async () => {
   const displayA = document.getElementById('val-a') as HTMLSpanElement;
   const displayB = document.getElementById('val-b') as HTMLSpanElement;
   const displayResult = document.getElementById('result-display') as HTMLSpanElement;
+  const overlay = document.getElementById('overlay') as HTMLDivElement;
 
   // --- Geometry Logic ---
   const getDigits = (num: number) => num.toString().split('').map(Number);
@@ -163,6 +276,29 @@ const main = async () => {
     return null;
   };
 
+  const updateLabels = (labels: LabelData[]) => {
+    overlay.innerHTML = '';
+    labels.forEach(l => {
+        const el = document.createElement('div');
+        el.className = `overlay-label ${l.type === 'A' ? 'label-a' : 'label-b'}`;
+        el.textContent = l.text;
+
+        // Convert NDC (Normalized Device Coordinates) to Screen Pixels
+        // Note: Our coordinates are "World" space, which is divided by 3.5 in the vertex shader to get NDC.
+        const ndcX = l.x / 3.5;
+        const ndcY = l.y / 3.5;
+
+        const screenX = (ndcX + 1) * 0.5 * canvas.clientWidth;
+        // Flip Y because Screen Y is down, WebGPU Y is up (usually)
+        // Actually, in WebGPU NDC Y is up. HTML Y is down.
+        const screenY = (1 - ndcY) * 0.5 * canvas.clientHeight;
+
+        el.style.left = `${screenX}px`;
+        el.style.top = `${screenY}px`;
+        overlay.appendChild(el);
+    });
+  };
+
   const generateGeometry = () => {
     const numA = parseInt(sliderA.value);
     const numB = parseInt(sliderB.value);
@@ -178,6 +314,7 @@ const main = async () => {
     const dotData: number[] = []; // Now stores x, y, r, g, b
     const storedLinesA: LineSegment[] = [];
     const storedLinesB: LineSegment[] = [];
+    const labels: LabelData[] = [];
 
     const cos45 = 0.7071, sin45 = 0.7071;
 
@@ -190,8 +327,8 @@ const main = async () => {
     let currentOffset = -widthA / 2;
 
     digitsA.forEach((digit, visualIndex) => {
-      // The power is based on the position from the right
       const power = digitsA.length - 1 - visualIndex;
+      const groupStart = currentOffset;
 
       for (let i = 0; i < digit; i++) {
         const off = currentOffset + i * LINE_SPACING;
@@ -203,9 +340,19 @@ const main = async () => {
         const y2 = (cy * sin45) + ((LINE_LENGTH/2) * cos45);
 
         storedLinesA.push({ x1, y1, x2, y2, power });
-        lineVertices.push(x1, y1, 0.4, 0.4, 1.0);
-        lineVertices.push(x2, y2, 0.4, 0.4, 1.0);
+        // Push Instance Data: x1, y1, x2, y2, r, g, b
+        lineVertices.push(x1, y1, x2, y2, 0.4, 0.4, 1.0);
       }
+
+      // Calculate Label Position for Group A
+      const avgOff = groupStart + (digit - 1) * LINE_SPACING * 0.5;
+      // Position at start of line (Bottom-Leftish)
+      const labelDist = -LINE_LENGTH/2 - 0.4; // Slightly outside
+      const lx = (avgOff * cos45) - (labelDist * sin45);
+      const ly = (avgOff * sin45) + (labelDist * cos45);
+
+      labels.push({ text: digit.toString(), x: lx, y: ly, type: 'A' });
+
       currentOffset += (digit - 1) * LINE_SPACING + DIGIT_SPACING;
     });
 
@@ -215,6 +362,7 @@ const main = async () => {
 
     digitsB.forEach((digit, visualIndex) => {
       const power = digitsB.length - 1 - visualIndex;
+      const groupStart = currentOffset;
 
       for (let i = 0; i < digit; i++) {
         const off = currentOffset + i * LINE_SPACING;
@@ -226,11 +374,22 @@ const main = async () => {
         const y2 = (cx * -sin45) + ((LINE_LENGTH/2) * cos45);
 
         storedLinesB.push({ x1, y1, x2, y2, power });
-        lineVertices.push(x1, y1, 0.3, 0.8, 0.5);
-        lineVertices.push(x2, y2, 0.3, 0.8, 0.5);
+        lineVertices.push(x1, y1, x2, y2, 0.3, 0.8, 0.5);
       }
+
+      // Calculate Label Position for Group B
+      const avgOff = groupStart + (digit - 1) * LINE_SPACING * 0.5;
+      // Position at start (Top-Leftish)
+      const labelDist = -LINE_LENGTH/2 - 0.4;
+      const lx = (avgOff * cos45) - (labelDist * -sin45);
+      const ly = (avgOff * -sin45) + (labelDist * cos45);
+
+      labels.push({ text: digit.toString(), x: lx, y: ly, type: 'B' });
+
       currentOffset += (digit - 1) * LINE_SPACING + DIGIT_SPACING;
     });
+
+    updateLabels(labels);
 
     // 3. Calculate Intersections with Zone Colors
     for (const lA of storedLinesA) {
@@ -251,15 +410,17 @@ const main = async () => {
     }
 
     // 4. Upload Buffers
-    lineVertexCount = lineVertices.length / 5;
+    lineInstanceCount = lineVertices.length / 7; // 7 floats per line instance
     dotInstanceCount = dotData.length / 5; // 5 floats per dot
 
     if (lineBuffer) lineBuffer.destroy();
-    lineBuffer = device.createBuffer({
-      size: Math.max(lineVertices.length * 4, 16),
-      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    });
-    device.queue.writeBuffer(lineBuffer, 0, new Float32Array(lineVertices));
+    if (lineInstanceCount > 0) {
+      lineBuffer = device.createBuffer({
+        size: Math.max(lineVertices.length * 4, 28), // Minimum size to avoid errors
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+      });
+      device.queue.writeBuffer(lineBuffer, 0, new Float32Array(lineVertices));
+    }
 
     if (dotBuffer) dotBuffer.destroy();
     if (dotInstanceCount > 0) {
@@ -284,10 +445,10 @@ const main = async () => {
       }],
     });
 
-    if (lineVertexCount > 0 && lineBuffer) {
+    if (lineInstanceCount > 0 && lineBuffer) {
         renderPass.setPipeline(linePipeline);
         renderPass.setVertexBuffer(0, lineBuffer);
-        renderPass.draw(lineVertexCount);
+        renderPass.draw(6, lineInstanceCount);
     }
 
     if (dotInstanceCount > 0 && dotBuffer) {
