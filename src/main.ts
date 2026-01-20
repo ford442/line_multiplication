@@ -1,19 +1,22 @@
 import './style.css';
+import { mat4, vec3, project, Mat4 } from './math';
 
 // --- Configuration ---
 const LINE_SPACING = 0.15;
 const DIGIT_SPACING = 0.5;
-const LINE_LENGTH = 4.0;
+const LINE_LENGTH = 10.0; // Increased line length for larger numbers
 const DOT_SIZE = 0.05;
 
 // --- Colors for Place Values (Ones, Tens, Hundreds, Thousands...) ---
-// We'll pass these as a lookup in the shader or just distinct RGBs
 const ZONE_COLORS = [
   [0.2, 0.8, 0.8], // 0: Ones (Cyan)
   [0.6, 0.4, 1.0], // 1: Tens (Purple)
   [1.0, 0.6, 0.2], // 2: Hundreds (Orange)
   [0.2, 1.0, 0.4], // 3: Thousands (Green)
   [1.0, 0.2, 0.4], // 4: Ten Thousands (Red)
+  [0.2, 0.4, 1.0], // 5: Hundred Thousands (Blue)
+  [1.0, 0.2, 1.0], // 6: Millions (Magenta)
+  [0.8, 0.8, 0.2], // 7: Ten Millions (Yellow)
 ];
 
 // --- Types ---
@@ -78,8 +81,19 @@ const main = async () => {
     throw e;
   }
 
-  // 2. Shader Code
+  // 2. Uniform Buffer
+  const uniformBuffer = device.createBuffer({
+    size: 64, // 4x4 matrix
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+  });
+
+  // 3. Shader Code
   const shaderCode = `
+    struct Uniforms {
+      viewProj: mat4x4<f32>,
+    };
+    @group(0) @binding(0) var<uniform> uniforms: Uniforms;
+
     struct LineVertexOutput {
       @builtin(position) position: vec4<f32>,
       @location(0) color: vec4<f32>,
@@ -92,6 +106,41 @@ const main = async () => {
       @location(1) localPos: vec2<f32>,
     };
 
+    struct GroundVertexOutput {
+        @builtin(position) position: vec4<f32>,
+        @location(0) uv: vec2<f32>,
+    };
+
+    // --- Ground Shader ---
+    @vertex
+    fn vs_ground(@builtin(vertex_index) v_index: u32) -> GroundVertexOutput {
+        var pos = vec2<f32>(0.0, 0.0);
+        let size = 1000.0;
+        let idx = v_index % 6u;
+        // Quad
+        if (idx == 0u || idx == 3u) { pos = vec2<f32>(-size, -size); }
+        if (idx == 1u) { pos = vec2<f32>( size, -size); }
+        if (idx == 2u || idx == 4u) { pos = vec2<f32>(-size,  size); }
+        if (idx == 5u) { pos = vec2<f32>( size,  size); }
+
+        var out: GroundVertexOutput;
+        // XZ Plane
+        out.position = uniforms.viewProj * vec4<f32>(pos.x, -0.1, pos.y, 1.0);
+        out.uv = pos;
+        return out;
+    }
+
+    @fragment
+    fn fs_ground(in: GroundVertexOutput) -> @location(0) vec4<f32> {
+        let dist = length(in.uv);
+        // Gradient: Grey center fading to black
+        // 50.0 is the "bright" radius, 200.0 is dark
+        let t = clamp(dist / 150.0, 0.0, 1.0);
+        let color = mix(vec3<f32>(0.2, 0.2, 0.22), vec3<f32>(0.0, 0.0, 0.0), t);
+        return vec4<f32>(color, 1.0);
+    }
+
+
     // --- Line Shader ---
     struct LineInput {
       @location(0) start: vec2<f32>,
@@ -101,14 +150,13 @@ const main = async () => {
 
     @vertex
     fn vs_lines(@builtin(vertex_index) v_index: u32, input: LineInput) -> LineVertexOutput {
-      let thickness = 0.04;
+      let thickness = 0.08; // Thicker for 3D visibility
       let p0 = input.start;
       let p1 = input.end;
 
       let dir = p1 - p0;
       let len = length(dir);
 
-      // Handle zero length lines safely
       var normal = vec2<f32>(0.0, 1.0);
       var forward = vec2<f32>(1.0, 0.0);
       if (len > 0.0001) {
@@ -119,7 +167,6 @@ const main = async () => {
       var uv = vec2<f32>(0.0, 0.0);
       let idx = v_index % 6u;
 
-      // Expand line to quad
       if (idx == 0u || idx == 3u) { uv = vec2<f32>(0.0, -1.0); }
       if (idx == 1u) { uv = vec2<f32>(1.0, -1.0); }
       if (idx == 2u || idx == 4u) { uv = vec2<f32>(0.0, 1.0); }
@@ -128,11 +175,11 @@ const main = async () => {
       let localX = uv.x * len;
       let localY = uv.y * thickness * 0.5;
 
-      let worldPos = p0 + (forward * localX) + (normal * localY);
-      let ndcPos = worldPos / 3.5;
+      let pos2D = p0 + (forward * localX) + (normal * localY);
 
+      // Map 2D (x,y) to 3D (x, 0, z)
       var out: LineVertexOutput;
-      out.position = vec4<f32>(ndcPos, 0.0, 1.0);
+      out.position = uniforms.viewProj * vec4<f32>(pos2D.x, 0.05, pos2D.y, 1.0);
       out.color = vec4<f32>(input.color, 1.0);
       out.uv = uv;
       return out;
@@ -140,11 +187,8 @@ const main = async () => {
 
     @fragment
     fn fs_lines(in: LineVertexOutput) -> @location(0) vec4<f32> {
-      // Anti-aliasing along the width (Y axis of UV)
       let dist = abs(in.uv.y);
       let alpha = 1.0 - smoothstep(0.7, 1.0, dist);
-
-      // Premultiplied alpha
       return vec4<f32>(in.color.rgb * alpha, alpha);
     }
 
@@ -156,21 +200,19 @@ const main = async () => {
 
     @vertex
     fn vs_dots(@builtin(vertex_index) v_index: u32, input: DotInput) -> DotVertexOutput {
-       let size = ${DOT_SIZE};
+       let size = ${DOT_SIZE}; // Might need to increase for 3D perception
        var corner = vec2<f32>(0.0, 0.0);
        let idx = v_index % 6u;
 
-       // Standard Quad Expansion
        if (idx == 0u || idx == 3u) { corner = vec2<f32>(-1.0, -1.0); }
        if (idx == 1u) { corner = vec2<f32>( 1.0, -1.0); }
        if (idx == 2u || idx == 4u) { corner = vec2<f32>(-1.0,  1.0); }
        if (idx == 5u) { corner = vec2<f32>( 1.0,  1.0); }
 
-       let worldPos = input.center + (corner * size);
-       let ndcPos = worldPos / 3.5;
+       let pos2D = input.center + (corner * size);
 
        var out: DotVertexOutput;
-       out.position = vec4<f32>(ndcPos, 0.0, 1.0);
+       out.position = uniforms.viewProj * vec4<f32>(pos2D.x, 0.15, pos2D.y, 1.0); // Slightly higher than lines
        out.color = vec4<f32>(input.zoneColor, 1.0);
        out.localPos = corner;
        return out;
@@ -178,42 +220,46 @@ const main = async () => {
 
     @fragment
     fn fs_dots(in: DotVertexOutput) -> @location(0) vec4<f32> {
-      // Create a "Gem" shape
-      // Diamond shape: abs(x) + abs(y) <= 1.0
       let d = abs(in.localPos.x) + abs(in.localPos.y);
       if (d > 1.0) { discard; }
-
-      // Faceted Look
       var brightness = 1.0;
-
-      // Top facets are brighter, bottom darker
-      if (in.localPos.y > 0.0) { brightness *= 0.7; }
-      else { brightness *= 1.1; }
-
-      // Side facets
+      if (in.localPos.y > 0.0) { brightness *= 0.7; } else { brightness *= 1.1; }
       if (abs(in.localPos.x) > 0.0) { brightness *= 0.95; }
-
-      // Specular highlight in the center
       let dist = length(in.localPos);
       if (dist < 0.2) { brightness += (0.2 - dist) * 4.0; }
-
-      // Edge outline effect (slight darkening at very edge of diamond)
       if (d > 0.9) { brightness *= 0.8; }
-
       return vec4<f32>(in.color.rgb * brightness, 1.0);
     }
   `;
 
   const shaderModule = device.createShaderModule({ code: shaderCode });
 
-  // 3. Pipelines
+  // 4. Pipelines
+
+  // Ground
+  const groundPipeline = device.createRenderPipeline({
+    layout: 'auto',
+    vertex: {
+        module: shaderModule,
+        entryPoint: 'vs_ground'
+    },
+    fragment: { module: shaderModule, entryPoint: 'fs_ground', targets: [{ format }] },
+    primitive: { topology: 'triangle-list' },
+    depthStencil: {
+        depthWriteEnabled: true,
+        depthCompare: 'less',
+        format: 'depth24plus',
+    }
+  });
+
+  // Lines
   const linePipeline = device.createRenderPipeline({
     layout: 'auto',
     vertex: {
       module: shaderModule,
       entryPoint: 'vs_lines',
       buffers: [{
-        arrayStride: 28, // start(2) + end(2) + color(3) = 7 floats * 4 = 28
+        arrayStride: 28,
         stepMode: 'instance',
         attributes: [
           { shaderLocation: 0, offset: 0, format: 'float32x2' },  // start
@@ -222,26 +268,61 @@ const main = async () => {
         ]
       }]
     },
-    fragment: { module: shaderModule, entryPoint: 'fs_lines', targets: [{ format }] },
-    primitive: { topology: 'triangle-list' }
+    fragment: { module: shaderModule, entryPoint: 'fs_lines', targets: [{ format, blend: {
+        color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+        alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' }
+    } }] },
+    primitive: { topology: 'triangle-list' },
+    depthStencil: {
+        depthWriteEnabled: false, // Transparent lines usually don't write depth, but in 3D...
+        depthCompare: 'less',
+        format: 'depth24plus',
+    }
   });
 
+  // Dots
   const dotPipeline = device.createRenderPipeline({
     layout: 'auto',
     vertex: {
       module: shaderModule,
       entryPoint: 'vs_dots',
       buffers: [{
-        arrayStride: 20, // Increased stride: 2 floats (pos) + 3 floats (color) = 20 bytes
+        arrayStride: 20,
         stepMode: 'instance',
         attributes: [
-            { shaderLocation: 0, offset: 0, format: 'float32x2' }, // center
-            { shaderLocation: 1, offset: 8, format: 'float32x3' }  // zoneColor
+            { shaderLocation: 0, offset: 0, format: 'float32x2' },
+            { shaderLocation: 1, offset: 8, format: 'float32x3' }
         ]
       }]
     },
     fragment: { module: shaderModule, entryPoint: 'fs_dots', targets: [{ format }] },
-    primitive: { topology: 'triangle-list' }
+    primitive: { topology: 'triangle-list' },
+    depthStencil: {
+        depthWriteEnabled: true,
+        depthCompare: 'less',
+        format: 'depth24plus',
+    }
+  });
+
+  // Bind Groups
+  const groundBindGroup = device.createBindGroup({
+    layout: groundPipeline.getBindGroupLayout(0),
+    entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
+  });
+  const lineBindGroup = device.createBindGroup({
+    layout: linePipeline.getBindGroupLayout(0),
+    entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
+  });
+  const dotBindGroup = device.createBindGroup({
+      layout: dotPipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
+  });
+
+  // Create Depth Texture
+  let depthTexture = device.createTexture({
+    size: [canvas.width, canvas.height],
+    format: 'depth24plus',
+    usage: GPUTextureUsage.RENDER_ATTACHMENT,
   });
 
   // --- State ---
@@ -249,11 +330,10 @@ const main = async () => {
   let dotBuffer: GPUBuffer | null = null;
   let lineInstanceCount = 0;
   let dotInstanceCount = 0;
+  let currentLabels: { data: LabelData; el: HTMLDivElement }[] = [];
 
-  const sliderA = document.getElementById('num-a') as HTMLInputElement;
-  const sliderB = document.getElementById('num-b') as HTMLInputElement;
-  const displayA = document.getElementById('val-a') as HTMLSpanElement;
-  const displayB = document.getElementById('val-b') as HTMLSpanElement;
+  const inputA = document.getElementById('num-a') as HTMLInputElement;
+  const inputB = document.getElementById('num-b') as HTMLInputElement;
   const displayResult = document.getElementById('result-display') as HTMLSpanElement;
   const overlay = document.getElementById('overlay') as HTMLDivElement;
 
@@ -278,52 +358,68 @@ const main = async () => {
 
   const updateLabels = (labels: LabelData[]) => {
     overlay.innerHTML = '';
+    currentLabels = [];
     labels.forEach(l => {
         const el = document.createElement('div');
         el.className = `overlay-label ${l.type === 'A' ? 'label-a' : 'label-b'}`;
         el.textContent = l.text;
-
-        // Convert NDC (Normalized Device Coordinates) to Screen Pixels
-        // Note: Our coordinates are "World" space, which is divided by 3.5 in the vertex shader to get NDC.
-        const ndcX = l.x / 3.5;
-        const ndcY = l.y / 3.5;
-
-        const screenX = (ndcX + 1) * 0.5 * canvas.clientWidth;
-        // Flip Y because Screen Y is down, WebGPU Y is up (usually)
-        // Actually, in WebGPU NDC Y is up. HTML Y is down.
-        const screenY = (1 - ndcY) * 0.5 * canvas.clientHeight;
-
-        el.style.left = `${screenX}px`;
-        el.style.top = `${screenY}px`;
         overlay.appendChild(el);
+        currentLabels.push({ data: l, el });
     });
   };
 
-  const generateGeometry = () => {
-    const numA = parseInt(sliderA.value);
-    const numB = parseInt(sliderB.value);
+  const updateLabelPositions = (viewProj: Mat4) => {
+    currentLabels.forEach(item => {
+        // Project world pos (x, 0, y) -> Screen
+        const worldPos = vec3.create(item.data.x, 0.0, item.data.y);
+        const sPos = project(worldPos, viewProj, canvas.width, canvas.height);
 
-    displayA.textContent = numA.toString();
-    displayB.textContent = numB.toString();
+        if (sPos) {
+            const cssX = sPos.x / window.devicePixelRatio;
+            const cssY = sPos.y / window.devicePixelRatio;
+
+            item.el.style.display = 'block';
+            item.el.style.left = `${cssX}px`;
+            item.el.style.top = `${cssY}px`;
+        } else {
+            item.el.style.display = 'none';
+        }
+    });
+  };
+
+  let geometryBounds = { minX: -5, maxX: 5, minY: -5, maxY: 5 };
+
+  const generateGeometry = () => {
+    const numA = parseInt(inputA.value) || 1;
+    const numB = parseInt(inputB.value) || 1;
+
     displayResult.textContent = `${numA * numB}`;
 
     const digitsA = getDigits(numA);
     const digitsB = getDigits(numB);
 
     const lineVertices: number[] = [];
-    const dotData: number[] = []; // Now stores x, y, r, g, b
+    const dotData: number[] = [];
     const storedLinesA: LineSegment[] = [];
     const storedLinesB: LineSegment[] = [];
     const labels: LabelData[] = [];
 
+    // Reset bounds
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    const updateBounds = (x: number, y: number) => {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+    };
+
     const cos45 = 0.7071, sin45 = 0.7071;
+    // Dynamic Line Length based on max digits to ensure intersection
+    const maxDigits = Math.max(digitsA.length, digitsB.length);
+    const dynamicLineLength = Math.max(LINE_LENGTH, maxDigits * 3.0 + 2.0);
 
     // 1. Generate Blue Lines (A)
-    // We reverse digits so index 0 is Ones, 1 is Tens, etc.
-    // const revDigitsA = [...digitsA].reverse();
     const widthA = (digitsA.reduce((s, d) => s + (d - 1) * LINE_SPACING, 0)) + (digitsA.length - 1) * DIGIT_SPACING;
-
-    // We draw left-to-right (High power to Low power), so we need to map visual order back to power
     let currentOffset = -widthA / 2;
 
     digitsA.forEach((digit, visualIndex) => {
@@ -334,20 +430,19 @@ const main = async () => {
         const off = currentOffset + i * LINE_SPACING;
         const cx = off, cy = off;
 
-        const x1 = (cx * cos45) - ((-LINE_LENGTH/2) * sin45);
-        const y1 = (cy * sin45) + ((-LINE_LENGTH/2) * cos45);
-        const x2 = (cx * cos45) - ((LINE_LENGTH/2) * sin45);
-        const y2 = (cy * sin45) + ((LINE_LENGTH/2) * cos45);
+        const x1 = (cx * cos45) - ((-dynamicLineLength/2) * sin45);
+        const y1 = (cy * sin45) + ((-dynamicLineLength/2) * cos45);
+        const x2 = (cx * cos45) - ((dynamicLineLength/2) * sin45);
+        const y2 = (cy * sin45) + ((dynamicLineLength/2) * cos45);
 
+        updateBounds(x1, y1); updateBounds(x2, y2);
         storedLinesA.push({ x1, y1, x2, y2, power });
-        // Push Instance Data: x1, y1, x2, y2, r, g, b
         lineVertices.push(x1, y1, x2, y2, 0.4, 0.4, 1.0);
       }
 
       // Calculate Label Position for Group A
       const avgOff = groupStart + (digit - 1) * LINE_SPACING * 0.5;
-      // Position at start of line (Bottom-Leftish)
-      const labelDist = -LINE_LENGTH/2 - 0.4; // Slightly outside
+      const labelDist = -dynamicLineLength/2 - 0.4; // Slightly outside
       const lx = (avgOff * cos45) - (labelDist * sin45);
       const ly = (avgOff * sin45) + (labelDist * cos45);
 
@@ -368,19 +463,19 @@ const main = async () => {
         const off = currentOffset + i * LINE_SPACING;
         const cx = off;
 
-        const x1 = (cx * cos45) - ((-LINE_LENGTH/2) * -sin45);
-        const y1 = (cx * -sin45) + ((-LINE_LENGTH/2) * cos45);
-        const x2 = (cx * cos45) - ((LINE_LENGTH/2) * -sin45);
-        const y2 = (cx * -sin45) + ((LINE_LENGTH/2) * cos45);
+        const x1 = (cx * cos45) - ((-dynamicLineLength/2) * -sin45);
+        const y1 = (cx * -sin45) + ((-dynamicLineLength/2) * cos45);
+        const x2 = (cx * cos45) - ((dynamicLineLength/2) * -sin45);
+        const y2 = (cx * -sin45) + ((dynamicLineLength/2) * cos45);
 
+        updateBounds(x1, y1); updateBounds(x2, y2);
         storedLinesB.push({ x1, y1, x2, y2, power });
         lineVertices.push(x1, y1, x2, y2, 0.3, 0.8, 0.5);
       }
 
       // Calculate Label Position for Group B
       const avgOff = groupStart + (digit - 1) * LINE_SPACING * 0.5;
-      // Position at start (Top-Leftish)
-      const labelDist = -LINE_LENGTH/2 - 0.4;
+      const labelDist = -dynamicLineLength/2 - 0.4;
       const lx = (avgOff * cos45) - (labelDist * -sin45);
       const ly = (avgOff * -sin45) + (labelDist * cos45);
 
@@ -396,13 +491,8 @@ const main = async () => {
       for (const lB of storedLinesB) {
         const pt = getIntersection(lA, lB);
         if (pt) {
-          // The magic: Zone Power = Power A + Power B
-          // Example: 10 (power 1) * 1 (power 0) = 10 (power 1) -> Tens Zone
           const zonePower = lA.power + lB.power;
-
-          // Get color for this zone (clamp to max color defined)
           const color = ZONE_COLORS[Math.min(zonePower, ZONE_COLORS.length - 1)];
-
           dotData.push(pt[0], pt[1]); // Position
           dotData.push(color[0], color[1], color[2]); // Color
         }
@@ -410,13 +500,13 @@ const main = async () => {
     }
 
     // 4. Upload Buffers
-    lineInstanceCount = lineVertices.length / 7; // 7 floats per line instance
-    dotInstanceCount = dotData.length / 5; // 5 floats per dot
+    lineInstanceCount = lineVertices.length / 7;
+    dotInstanceCount = dotData.length / 5;
 
     if (lineBuffer) lineBuffer.destroy();
     if (lineInstanceCount > 0) {
       lineBuffer = device.createBuffer({
-        size: Math.max(lineVertices.length * 4, 28), // Minimum size to avoid errors
+        size: Math.max(lineVertices.length * 4, 28),
         usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
       });
       device.queue.writeBuffer(lineBuffer, 0, new Float32Array(lineVertices));
@@ -430,29 +520,95 @@ const main = async () => {
         });
         device.queue.writeBuffer(dotBuffer, 0, new Float32Array(dotData));
     }
+
+    // Update global bounds correctly (inside generateGeometry)
+    if (minX !== Infinity) {
+         geometryBounds = { minX: minX - 2, maxX: maxX + 2, minY: minY - 2, maxY: maxY + 2 };
+    }
   };
 
   const render = () => {
+    // 1. Update Camera Matrix based on bounds
+    const centerX = (geometryBounds.minX + geometryBounds.maxX) / 2;
+    const centerY = (geometryBounds.minY + geometryBounds.maxY) / 2;
+    const sizeX = geometryBounds.maxX - geometryBounds.minX;
+    const sizeY = geometryBounds.maxY - geometryBounds.minY;
+    const maxDim = Math.max(sizeX, sizeY);
+
+    // Position camera
+    const fov = 60 * (Math.PI / 180);
+    const aspect = canvas.width / canvas.height;
+
+    // Calculate distance needed to fit the object
+    // tan(fov/2) = (height/2) / dist
+    let dist = (maxDim / 2) / Math.tan(fov / 2);
+    dist *= 1.5; // Add some margin
+    dist = Math.max(dist, 5.0); // Min distance
+
+    // Look from above and angle
+    // We want to look at (centerX, 0, centerY)
+    // From (centerX, dist, centerY + dist*0.5) to give a bird's eye view
+    const eye = vec3.create(centerX, dist * 0.8, centerY + dist * 0.5);
+    const center = vec3.create(centerX, 0, centerY);
+    const up = vec3.create(0, 1, 0);
+
+    const view = mat4.lookAt(eye, center, up);
+    const proj = mat4.perspective(fov, aspect, 0.1, 2000.0);
+    const viewProj = mat4.multiply(proj, view);
+
+    // Update Uniforms
+    // @ts-ignore: SharedArrayBuffer issue with Float32Array in some TS envs
+    device.queue.writeBuffer(uniformBuffer, 0, viewProj);
+
+    // Update Labels
+    updateLabelPositions(viewProj);
+
     const commandEncoder = device.createCommandEncoder();
     const textureView = context.getCurrentTexture().createView();
+
+    // Check depth texture size
+    if (depthTexture.width !== canvas.width || depthTexture.height !== canvas.height) {
+        depthTexture.destroy();
+        depthTexture = device.createTexture({
+          size: [canvas.width, canvas.height],
+          format: 'depth24plus',
+          usage: GPUTextureUsage.RENDER_ATTACHMENT,
+        });
+    }
+    const depthView = depthTexture.createView();
 
     const renderPass = commandEncoder.beginRenderPass({
       colorAttachments: [{
         view: textureView,
-        clearValue: { r: 0.1, g: 0.1, b: 0.1, a: 1.0 },
+        clearValue: { r: 0.05, g: 0.05, b: 0.05, a: 1.0 },
         loadOp: 'clear',
         storeOp: 'store',
       }],
+      depthStencilAttachment: {
+          view: depthView,
+          depthClearValue: 1.0,
+          depthLoadOp: 'clear',
+          depthStoreOp: 'store',
+      }
     });
 
+    // Draw Ground
+    renderPass.setPipeline(groundPipeline);
+    renderPass.setBindGroup(0, groundBindGroup);
+    renderPass.draw(6);
+
+    // Draw Lines
     if (lineInstanceCount > 0 && lineBuffer) {
         renderPass.setPipeline(linePipeline);
+        renderPass.setBindGroup(0, lineBindGroup);
         renderPass.setVertexBuffer(0, lineBuffer);
         renderPass.draw(6, lineInstanceCount);
     }
 
+    // Draw Dots
     if (dotInstanceCount > 0 && dotBuffer) {
         renderPass.setPipeline(dotPipeline);
+        renderPass.setBindGroup(0, dotBindGroup);
         renderPass.setVertexBuffer(0, dotBuffer);
         renderPass.draw(6, dotInstanceCount);
     }
@@ -462,8 +618,8 @@ const main = async () => {
     requestAnimationFrame(render);
   };
 
-  sliderA.addEventListener('input', generateGeometry);
-  sliderB.addEventListener('input', generateGeometry);
+  inputA.addEventListener('input', generateGeometry);
+  inputB.addEventListener('input', generateGeometry);
   generateGeometry();
   requestAnimationFrame(render);
 };

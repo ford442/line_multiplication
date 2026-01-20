@@ -112,6 +112,23 @@ input[type="range"] {
   cursor: pointer;
 }
 
+.num-input {
+  flex: 1;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-left-width: 4px; /* Color indicator on left */
+  border-radius: 4px;
+  color: #fff;
+  padding: 0.5rem;
+  font-size: 1rem;
+  font-family: monospace;
+}
+
+.num-input:focus {
+  outline: none;
+  background: #333;
+}
+
 .value-display {
   font-family: 'Courier New', monospace;
   font-size: 1.1rem;
