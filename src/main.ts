@@ -35,10 +35,12 @@ type LabelData = {
 
 const main = async () => {
   // 1. WebGPU Setup
+  const fallback = document.getElementById('webgpu-fallback') as HTMLDivElement;
+
   if (!navigator.gpu) {
     console.error("WebGPU not supported on this browser.");
-    alert("WebGPU is not supported. Please try Chrome Canary or a compatible browser.");
-    throw new Error('WebGPU not supported.');
+    fallback.hidden = false;
+    return;
   }
 
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -55,8 +57,8 @@ const main = async () => {
 
   if (!adapter) {
     console.error("No WebGPU adapter found.");
-    alert("No WebGPU adapter found.");
-    throw new Error('No adapter.');
+    fallback.hidden = false;
+    return;
   }
 
   const device = await adapter.requestDevice();
@@ -335,6 +337,7 @@ const main = async () => {
   const inputA = document.getElementById('num-a') as HTMLInputElement;
   const inputB = document.getElementById('num-b') as HTMLInputElement;
   const displayResult = document.getElementById('result-display') as HTMLSpanElement;
+  const displayEquation = document.getElementById('equation-display') as HTMLDivElement;
   const overlay = document.getElementById('overlay') as HTMLDivElement;
 
   // --- Geometry Logic ---
@@ -394,6 +397,11 @@ const main = async () => {
     const numB = parseInt(inputB.value) || 1;
 
     displayResult.textContent = `${numA * numB}`;
+    displayEquation.textContent = `${numA} × ${numB} = ${numA * numB}`;
+    // Trigger pop animation by removing and re-adding the class
+    displayResult.classList.remove('pop');
+    void displayResult.offsetWidth; // reflow
+    displayResult.classList.add('pop');
 
     const digitsA = getDigits(numA);
     const digitsB = getDigits(numB);
@@ -620,6 +628,8 @@ const main = async () => {
 
   inputA.addEventListener('input', generateGeometry);
   inputB.addEventListener('input', generateGeometry);
+  inputA.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); generateGeometry(); } });
+  inputB.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); generateGeometry(); } });
   generateGeometry();
   requestAnimationFrame(render);
 };

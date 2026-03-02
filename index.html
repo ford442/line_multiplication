@@ -6,16 +6,17 @@
     <title>Visual Line Multiplication</title>
   </head>
   <body>
-    <aside class="sidebar">
-      <header>
-        <h1>Visual Multiplication</h1>
-        <p class="subtitle">The "Japanese" Line Method</p>
+    <aside class="sidebar" role="complementary" aria-label="Controls and instructions">
+      <header class="sidebar-header">
+        <div class="header-icon" aria-hidden="true">✕</div>
+        <h1>Line Multiplication</h1>
+        <p class="subtitle">The "Japanese" Visual Method</p>
       </header>
 
       <section class="intro">
         <p>
-          Forget calculators. Multiply numbers just by drawing lines and counting dots.
-          It's satisfying, visual, and mathematically beautiful.
+          Multiply numbers by drawing crossing lines and counting intersection dots.
+          Each <strong>color group</strong> of dots represents one digit in the result.
         </p>
       </section>
 
@@ -23,36 +24,30 @@
         <h3>How it Works</h3>
         <ol>
           <li>
-            <strong>Draw the First Number:</strong>
-            Convert digits into parallel lines (Blue).
-            <br><em>Example: "12" = 1 line, a gap, then 2 lines.</em>
+            <strong>Blue Lines:</strong> Each digit of the first number becomes a group of parallel lines going diagonally.
+            <br><em>Example: "12" → 1 line, gap, 2 lines.</em>
           </li>
           <li>
-            <strong>Draw the Second:</strong>
-            Cross them with lines for the second number (Green).
+            <strong>Green Lines:</strong> Cross them at 90° with groups for the second number's digits.
           </li>
           <li>
-            <strong>Count the Dots:</strong>
-            Group the intersections vertically.
-            <br>Right group = Ones place.
-            <br>Middle group = Tens place.
-            <br>Left group = Hundreds place.
+            <strong>Count the Dots:</strong> Each color group sums to one digit of the final answer.
           </li>
         </ol>
       </div>
 
       <div class="card math-box">
         <h3>Why does it work?</h3>
-        <p>It's not magic—it's the <strong>Distributive Property</strong> in disguise!</p>
+        <p>It's the <strong>Distributive Property</strong> in visual form!</p>
         <p>
-          When you cross lines for $12 \times 3$, you are actually calculating:
+          Crossing lines for 12 × 3 calculates:
           <br>
-          $(10 + 2) \times 3 = (10 \times 3) + (2 \times 3)$
+          (10 + 2) × 3 = (10 × 3) + (2 × 3)
         </p>
-        <p>The visual groups separate the <strong>Tens</strong> from the <strong>Ones</strong> automatically.</p>
+        <p>The dot color groups separate each <strong>place value</strong> automatically.</p>
       </div>
 
-      <svg id="demo-svg" viewBox="0 0 240 160">
+      <svg id="demo-svg" viewBox="0 0 240 160" role="img" aria-label="Animated example: 12 × 3 = 36">
         <g class="step-1-blue">
           <line x1="40" y1="20" x2="100" y2="140" stroke="#646cff" stroke-width="3" stroke-linecap="round" />
 
@@ -68,27 +63,27 @@
 
         <g class="step-3-dots">
           <g class="dots-tens">
-            <circle cx="68" cy="85" r="4" fill="white" />
-            <circle cx="75" cy="98" r="4" fill="white" />
-            <circle cx="82" cy="111" r="4" fill="white" />
+            <circle cx="68" cy="85" r="4" fill="#9966ff" />
+            <circle cx="75" cy="98" r="4" fill="#9966ff" />
+            <circle cx="82" cy="111" r="4" fill="#9966ff" />
           </g>
           <g class="dots-ones">
-            <circle cx="110" cy="70" r="4" fill="white" />
-            <circle cx="117" cy="83" r="4" fill="white" />
-            <circle cx="124" cy="96" r="4" fill="white" />
+            <circle cx="110" cy="70" r="4" fill="#33cccc" />
+            <circle cx="117" cy="83" r="4" fill="#33cccc" />
+            <circle cx="124" cy="96" r="4" fill="#33cccc" />
 
-            <circle cx="125" cy="65" r="4" fill="white" />
-            <circle cx="132" cy="78" r="4" fill="white" />
-            <circle cx="139" cy="91" r="4" fill="white" />
+            <circle cx="125" cy="65" r="4" fill="#33cccc" />
+            <circle cx="132" cy="78" r="4" fill="#33cccc" />
+            <circle cx="139" cy="91" r="4" fill="#33cccc" />
           </g>
         </g>
 
         <g class="step-4-zones">
-          <ellipse cx="75" cy="100" rx="25" ry="35" fill="rgba(100, 108, 255, 0.2)" stroke="#646cff" stroke-dasharray="4" />
-          <text x="75" y="150" fill="#646cff" font-size="10" text-anchor="middle" font-weight="bold">3 Tens (30)</text>
+          <ellipse cx="75" cy="100" rx="25" ry="35" fill="rgba(153, 102, 255, 0.15)" stroke="#9966ff" stroke-dasharray="4" />
+          <text x="75" y="150" fill="#9966ff" font-size="10" text-anchor="middle" font-weight="bold">3 Tens (30)</text>
 
-          <ellipse cx="125" cy="80" rx="30" ry="40" fill="rgba(78, 201, 176, 0.2)" stroke="#4ec9b0" stroke-dasharray="4" />
-          <text x="170" y="85" fill="#4ec9b0" font-size="10" text-anchor="start" font-weight="bold">6 Ones (6)</text>
+          <ellipse cx="125" cy="80" rx="30" ry="40" fill="rgba(51, 204, 204, 0.15)" stroke="#33cccc" stroke-dasharray="4" />
+          <text x="170" y="85" fill="#33cccc" font-size="10" text-anchor="start" font-weight="bold">6 Ones (6)</text>
 
           <text x="200" y="150" fill="white" font-size="14" text-anchor="end" font-weight="bold">= 36</text>
         </g>
@@ -96,21 +91,41 @@
 
       <div class="controls-section">
         <h3>Try it Yourself</h3>
+        <div class="equation-display" id="equation-display" aria-live="polite">12 × 3 = 36</div>
         <div class="control-group">
-          <label for="num-a">Blue Lines (First Number)</label>
+          <label for="num-a">
+            <span class="label-swatch" style="background:#646cff;" aria-hidden="true"></span>
+            Blue Lines (First Number)
+          </label>
           <div class="input-row">
-            <input type="number" id="num-a" min="1" max="9999" value="12" class="num-input" style="border-color: #646cff;" />
+            <input type="number" id="num-a" min="1" max="9999" value="12" class="num-input" style="border-color: #646cff;" aria-label="First number" />
           </div>
         </div>
         <div class="control-group">
-          <label for="num-b">Green Lines (Second Number)</label>
+          <label for="num-b">
+            <span class="label-swatch" style="background:#4ec9b0;" aria-hidden="true"></span>
+            Green Lines (Second Number)
+          </label>
           <div class="input-row">
-            <input type="number" id="num-b" min="1" max="9999" value="3" class="num-input" style="border-color: #4ec9b0;" />
+            <input type="number" id="num-b" min="1" max="9999" value="3" class="num-input" style="border-color: #4ec9b0;" aria-label="Second number" />
           </div>
         </div>
         <div class="result-box">
-             <span class="result-label">Result:</span>
-             <span id="result-display" class="result-value">36</span>
+          <span class="result-label">Result</span>
+          <span id="result-display" class="result-value" aria-live="polite">36</span>
+        </div>
+        <p class="hint">Updates automatically &mdash; or press <kbd>Enter</kbd></p>
+      </div>
+
+      <div class="card legend-box">
+        <h3>Dot Colors &mdash; Place Values</h3>
+        <div class="legend-grid">
+          <div class="legend-item"><span class="legend-dot" style="background:#33cccc;"></span> Ones</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#9966ff;"></span> Tens</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#ff9933;"></span> Hundreds</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#33ff66;"></span> Thousands</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#ff3366;"></span> Ten-Thousands</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#3366ff;"></span> Hundred-Thousands</div>
         </div>
       </div>
 
@@ -124,9 +139,18 @@
 
     </aside>
 
-    <main class="main-stage">
-      <canvas id="canvas"></canvas>
-      <div id="overlay"></div>
+    <main class="main-stage" role="main">
+      <canvas id="canvas" aria-label="3D WebGPU visualization of line multiplication"></canvas>
+      <div id="overlay" aria-hidden="true"></div>
+      <div id="webgpu-fallback" class="webgpu-fallback" hidden>
+        <div class="fallback-content">
+          <div class="fallback-icon" aria-hidden="true">⚠️</div>
+          <h2>WebGPU Not Available</h2>
+          <p>Your browser doesn't support WebGPU yet.</p>
+          <p>Try <strong>Chrome 113+</strong> or <strong>Edge 113+</strong> on a supported platform.</p>
+          <a href="https://caniuse.com/webgpu" target="_blank" rel="noopener noreferrer" class="fallback-link">Check browser compatibility →</a>
+        </div>
+      </div>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
