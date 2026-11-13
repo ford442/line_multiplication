@@ -1,12 +1,16 @@
-# WebGPU Times Table Visualizer
+# Line Multiplication
 
-An interactive web application that visualizes times tables using WebGPU for high-performance rendering.
+An animated, step-by-step lesson for the visual ("Japanese") line multiplication method, rendered in 3D with WebGPU (with a 2D canvas fallback for browsers without WebGPU).
 
 ## Features
 
-- **High Performance**: Renders thousands of lines at 60 FPS using WebGPU.
-- **Interactive Controls**: Sliders to adjust the multiplier and the total number of points.
-- **Dynamic shaders**: Vertex positions are calculated on the GPU, minimizing CPU-GPU data transfer.
+- **Guided lesson**: lines grow in digit by digit, crossings light up place value by place value, and the answer is revealed at the end. Play/pause, step, or click the progress bar.
+- **Partial-product badges** such as `24 · 4×6 tens` show the distributive property directly on the diagram.
+- **Column breakdown table**: dots → carry → digit, filled in as the lesson counts.
+- **Quiz mode**: random problems with the answer hidden. A wrong guess points you to the column that's off, and correct answers build a streak.
+- **Presets, random problems, and shareable URLs** (`#47x36`).
+- Drag to tilt, scroll to zoom, double-click to reset. Keyboard: ← → Space R.
+- Works without WebGPU through a Canvas 2D fallback.
 
 ## Getting Started
 
